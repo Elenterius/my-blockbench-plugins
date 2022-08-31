@@ -1,0 +1,20 @@
+{
+  "name": "my-blockbench-plugins",
+  "version": "1.0.0",
+  "description": "Collection of custom Blockbench plugins and scripts",
+  "main": "",
+  "types": "./index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Elenterius/my-blockbench-plugins.git"
+  },
+  "author": "Elenterius",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Elenterius/my-blockbench-plugins/issues"
+  },
+  "homepage": "https://github.com/Elenterius/my-blockbench-plugins#readme",
+  "devDependencies": {
+    "blockbench-types": "^4.3.0"
+  }
+}

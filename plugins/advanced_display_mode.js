@@ -2,28 +2,6 @@
 	'use strict';
 
 	const PLUGIN_ID = 'advanced_display_mode';
-	const PluginDataStore = {
-		dataId: PLUGIN_ID + '_data',
-		internalData: {},
-		saveData: function () {
-			localStorage.setItem(this.dataId, JSON.stringify(this.internalData))
-		},
-		loadData: function () {
-			if (localStorage.getItem(this.dataId) != null) {
-				this.internalData = JSON.parse(localStorage.getItem(this.dataId))
-			}
-		},
-		get: function (key) {
-			if (key in this.internalData) return this.internalData[key];
-			return null;
-		},
-		set: function (key, data) {
-			this.internalData[key] = data;
-		},
-		remove: function (key) {
-			delete this.internalData[key];
-		}
-	};
 
 	function getCurrentDisplaySlot() {
 		return display_slot;
@@ -35,13 +13,13 @@
 
 	function onSelectModeEvent(data) {
 		if (data.mode.id === 'display') {
-
+			//TODO: implement or delete
 		}
 	}
 
 	function onUnselectModeEvent(data) {
 		if (data.mode.id === 'display') {
-
+			//TODO: implement or delete
 		}
 	}
 
@@ -100,11 +78,6 @@
 		extend(object) {
 			for (var key in LaserPointer.properties) {
 				LaserPointer.properties[key].merge(this, object)
-			}
-			if (typeof object.vertices == 'object') {
-				for (let key in object.vertices) {
-					this.vertices[key] = [...object.vertices[key]];
-				}
 			}
 			this.sanitizeName();
 			return this;
@@ -313,10 +286,6 @@
 		static #showGoldenRatio = true;
 		static #showGuideLines = true;
 		static #showGuideCircles = true;
-
-		static init() {
-			InjectUtil.injectStyleElement(PLUGIN_ID, "bdm_fpv_overlay_style", FirstPersonViewOverlay.getBaseCSS());
-		}
 
 		static remove() {
 			$("#" + FirstPersonViewOverlay.elementId).detach();
@@ -566,7 +535,7 @@
 			DisplayLoadHandler.#before();
 			DisplayLoadHandler.#onLoadThirdPersonDisplay(false);
 		}
-		static #onLoadThirdPersonDisplay(isRightArm) {
+		static #onLoadThirdPersonDisplay(_isRightArm) {
 			const refModel = getActiveReferenceModel();
 			if (refModel.id === 'player') {
 				refModel.updateBasePosition();
@@ -618,34 +587,6 @@
 				});
 			});
 		}
-
-		static injectStyleElement(pluginId, elementId, css) {
-			let oldStyle = document.getElementById(elementId);
-			if (oldStyle != null) oldStyle.remove();
-
-			let style = document.createElement('style');
-			style.setAttribute('type', 'text/css');
-			style.setAttribute('id', elementId);
-			style.dataset.pluginId = pluginId;
-			style.appendChild(document.createTextNode(css));
-
-			const head = document.getElementsByTagName('head')[0];
-			head.appendChild(style);
-		}
-
-		static removeAllStyleElementsBy(pluginId) {
-			let styles = document.querySelectorAll(`style[data-plugin-id=${pluginId}]`);
-			styles.forEach((el) => {
-				el.remove();
-			});
-		}
-
-		static removeAllHtmlElementsBy(pluginId) {
-			let styles = document.querySelectorAll(`[data-plugin-id=${pluginId}]`);
-			styles.forEach((el) => {
-				el.remove();
-			});
-		}
 	}
 
 	class PluginUtil {
@@ -676,6 +617,7 @@
 	let toggleGuideLinesAction;
 	let toggleGuideCirclesAction;
 	let showPluginAboutAction;
+	let styles;
 
 	Plugin.register(PLUGIN_ID, {
 		title: 'Advanced Display Mode',
@@ -684,12 +626,14 @@
 		about: "This plugin adds guide lines to the first person display preview and adds a selection of the minecraft arm poses (crossbow holding, bow holding, trident throwing, etc.) to the third person display preview.",
 		icon: 'display_settings',
 		tags: ["Minecraft", "Display"],
-		version: '0.0.1',
+		version: '0.0.2',
 		min_version: "4.3.0",
 		max_version: "5.0.0",
 		variant: 'both',
 
 		onload() {
+			styles = Blockbench.addCSS(FirstPersonViewOverlay.getBaseCSS());
+
 			PluginUtil.createAboutSubMenu();
 			showPluginAboutAction = new Action(`about_${PLUGIN_ID}`, {
 				name: `About Advanced Display Mode...`,
@@ -786,7 +730,7 @@
 
 			InjectUtil.decorateObjectFunction(window, 'exitDisplaySettings', resetDisplayArea, null);
 
-			for (const [key, refModel] of Object.entries(displayReferenceObjects.refmodels)) {
+			for (const [_key, refModel] of Object.entries(displayReferenceObjects.refmodels)) {
 				InjectUtil.decorateObjectFunction(refModel, 'load', resetDisplayArea, null);
 			}
 
@@ -872,6 +816,8 @@
 		},
 
 		onunload() {
+			styles.delete();
+
 			Blockbench.removeListener('select_mode', onSelectModeEvent);
 			Blockbench.removeListener('unselect_mode', onUnselectModeEvent);
 

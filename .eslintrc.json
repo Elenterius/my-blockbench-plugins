@@ -1,0 +1,85 @@
+{
+    "env": {
+        "browser": true,
+        "es2021": true,
+        "jquery": true
+    },
+    "extends": [
+        "eslint:recommended",
+        "plugin:vue/vue3-essential"
+    ],
+    "overrides": [],
+    "parserOptions": {
+        "ecmaVersion": "latest"
+    },
+    "plugins": [
+        "vue"
+    ],
+    "rules": {
+        "no-unused-vars": [
+            "error",
+            {
+                "argsIgnorePattern": "^_",
+                "destructuredArrayIgnorePattern": "^_"
+            }
+        ]
+    },
+    "globals": {
+        "display": "readonly",
+        "display_mode": "readonly",
+        "display_slot": "readonly",
+        "displayReferenceObjects": "readonly",
+        "display_area": "readonly",
+        "display_preview": "readonly",
+        "Transformer": "readonly",
+        "settings": "readonly",
+        "StateMemory": "readonly",
+        "Condition": "readonly",
+        "Property": "readonly",
+        "Blockbench": "readonly",
+        "Plugins": "readonly",
+        "Interface": "readonly",
+        "Formats": "readonly",
+        "Format": "readonly",
+        "Menu": "readonly",
+        "Toolbar": "readonly",
+        "Action": "readonly",
+        "Toggle": "readonly",
+        "MenuBar": "readonly",
+        "BarItems": "readonly",
+        "Keybinds": "readonly",
+        "ModelProject": "readonly",
+        "Project": "readonly",
+        "Undo": "readonly",
+        "Modes": "readonly",
+        "Texture": "readonly",
+        "MediaPreview": "readonly",
+        "ModelFormat": "readonly",
+        "DefaultCameraPresets": "readonly",
+        "scene": "readonly",
+        "Canvas": "readonly",
+        "Codecs": "readonly",
+        "Codec": "readonly",
+        "Outliner": "readonly",
+        "OutlinerElement": "readonly",
+        "Group": "readonly",
+        "NodePreviewController": "readonly",
+        "Dialog": "readonly",
+        "DisplayMode": "readonly",
+        "Panel": "readonly",
+        "Preview": "readonly",
+        "pathToExtension": "readonly",
+        "autoParseJSON": "readonly",
+        "pathToName": "readonly",
+        "loadModelFile": "readonly",
+        "getSelectionCenter": "readonly",
+        "tl": "readonly",
+        "selected": "readonly",
+        "Vue": "readonly",
+        "THREE": "readonly",
+        "Reusable": "readonly",
+        "PathModule": "readonly",
+        "app": "readonly",
+        "fs": "readonly"
+    }
+}

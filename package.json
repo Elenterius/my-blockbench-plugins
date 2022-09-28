@@ -15,6 +15,8 @@
   },
   "homepage": "https://github.com/Elenterius/my-blockbench-plugins#readme",
   "devDependencies": {
-    "blockbench-types": "^4.3.0"
+    "blockbench-types": "^4.3.0",
+    "eslint": "^8.23.1",
+    "eslint-plugin-vue": "^9.5.1"
   }
 }

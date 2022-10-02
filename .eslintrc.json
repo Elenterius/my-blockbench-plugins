@@ -80,6 +80,8 @@
         "Reusable": "readonly",
         "PathModule": "readonly",
         "app": "readonly",
-        "fs": "readonly"
+        "fs": "readonly",
+        "shell": "readonly",
+        "osfs": "readonly"
     }
 }

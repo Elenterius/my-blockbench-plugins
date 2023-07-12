@@ -82,6 +82,15 @@
         "app": "readonly",
         "fs": "readonly",
         "shell": "readonly",
-        "osfs": "readonly"
+        "osfs": "readonly",
+        "NullObjectAnimator": "readonly",
+        "NullObject": "readonly",
+        "OutlinerNode": "readonly",
+        "Locator": "readonly",
+        "FIK": "readonly",
+        "NumSlider": "readonly",
+        "BBPlugin": "readonly",
+        "Toolbars": "readonly",
+        "Panels": "readonly"
     }
 }

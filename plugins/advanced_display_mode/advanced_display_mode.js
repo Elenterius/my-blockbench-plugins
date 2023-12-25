@@ -1,5 +1,13 @@
+/**
+ * @author Elenterius
+ * @link https://github.com/Elenterius
+ * @copyright Elenterius 2023
+ * @license MIT (All Rights Reserved)
+ */
+"use strict";
+
 (function () {
-	'use strict';
+	"use strict";
 
 	const PLUGIN_ID = 'advanced_display_mode';
 
@@ -103,24 +111,41 @@
 
 	class ArmPose {
 		static NONE = new ArmPose('None', { right_arm: [0, 0, 0], left_arm: [0, 0, 0] });
-		static BOW = new ArmPose('Bow', { right_arm: [Math.PI / 2.0, -0.1, 0], left_arm: [Math.PI / 2.0, 0.1 + 0.4, 0] });
-		static CROSSBOW = new ArmPose('Crossbow', { right_arm: [Math.PI / 2.0 + 0.1, -0.3, 0], left_arm: [1.5, 0.6, 0] });
-		static TRIDENT = new ArmPose('Trident', { right_arm: [Math.PI, 0, 0], left_arm: [0, 0, 0] });
-		static SPYGLASS = new ArmPose('Spyglass', { right_arm: [1.9198622, -0.2617994, 0], left_arm: [0, 0, 0] });
-		static BLOCK = new ArmPose('Block', { right_arm: [0.9424779, -Math.PI / 6.0, 0], left_arm: [0, 0, 0] });
-		static ITEM = new ArmPose('Item', { right_arm: [Math.PI / 10.0, 0, 0], left_arm: [0, 0, 0] });
+		static BOW = new ArmPose('Bow Holding', { right_arm: [Math.PI / 2.0, -0.1, 0], left_arm: [Math.PI / 2.0, 0.1 + 0.4, 0] });
+		static CROSSBOW = new ArmPose('Crossbow Holding', { right_arm: [Math.PI / 2.0 + 0.1, -0.3, 0], left_arm: [1.5, 0.6, 0] });
+		static TRIDENT = new ArmPose('Trident Throwing', { right_arm: [Math.PI, 0, 0], left_arm: [0, 0, 0] });
+		static SPYGLASS = new ArmPose('Spyglass Holding', { right_arm: [1.9198622, -0.2617994, 0], left_arm: [0, 0, 0] });
+		static BLOCKING = new ArmPose('Blocking', { right_arm: [0.9424779, -Math.PI / 6.0, 0], left_arm: [0, 0, 0] });
+		static ITEM = new ArmPose('Item Holding', { right_arm: [Math.PI / 10.0, 0, 0], left_arm: [0, 0, 0] });
+
+		static {
+			Object.keys(ArmPose).forEach(key => {
+				ArmPose[key].id = key;
+			});
+		}
 
 		constructor(name, boneAngles) {
 			this.name = name;
 			this.boneAngles = boneAngles;
+			this.id = "";
 		}
 
+		/**
+		 * @returns {ArmPose[]}
+		 */
 		static values() {
-			return Object.keys(ArmPose);
+			return Object.keys(ArmPose).map(key => ArmPose[key]);
+		}
+
+		/**
+		 * @returns {ArmPose}
+		 */
+		static fromId(id) {
+			return ArmPose[id];
 		}
 
 		toString() {
-			return `ArmPose.${this.name}`;
+			return `ArmPose.${this.name.replace(" ", "_")}`;
 		}
 	}
 
@@ -230,14 +255,14 @@
 			select.id = "arm-pose-select";
 			select.style = "position: relative; display: flex;margin-right: 2px; margin-top: 2px;";
 
-			ArmPose.values().forEach(key => {
+			ArmPose.values().forEach(pose => {
 				const option = document.createElement("option");
-				option.value = ArmPose[key].name.toUpperCase();
-				option.text = ArmPose[key].name;
+				option.value = pose.id;
+				option.text = pose.name;
 				select.add(option);
 			});
 			select.onchange = (event) => {
-				ModelPoseUtil.setArmPose(getActiveReferenceModel(), ArmPose[event.target.value]);
+				ModelPoseUtil.setArmPose(getActiveReferenceModel(), ArmPose.fromId(event.target.value));
 			};
 
 			$('#display_sliders').append(`<div id="arm-pose-select-bar" class="bar display_slot_section_bar"><p>Arm Pose (For Preview Only)</p></div>`);
@@ -258,6 +283,11 @@
 			Transformer.center();
 		}
 
+		/**
+		 * @param {*} refModel 
+		 * @param {ArmPose} armPose 
+		 * @returns 
+		 */
 		static setArmPose(refModel, armPose) {
 			if (armPose == ArmPose.NONE) {
 				ModelPoseUtil.resetArmPose(refModel);
@@ -563,13 +593,21 @@
 
 		static #ORIGINAL_OBJECT_FUNCTIONS = new Map();
 
+		/**
+		 * @param {Object} obj 
+		 * @param {String} funcName 
+		 * @param {Function} preFunc 
+		 * @param {Function} postFunc 
+		 */
 		static decorateObjectFunction(obj, funcName, preFunc, postFunc) {
 			const originalFunc = obj[funcName];
+
 			obj[funcName] = function () {
 				if (preFunc) preFunc(arguments);
 				originalFunc.apply(this, arguments);
 				if (postFunc) postFunc(arguments);
 			};
+
 			for (let prop in originalFunc) {
 				if (originalFunc.hasOwnProperty(prop)) {
 					obj[funcName][prop] = originalFunc[prop];
@@ -589,132 +627,26 @@
 		}
 	}
 
-	class PluginUtil {
-		static createAboutSubMenu() {
-			let subMenu = this.getAboutSubMenu();
-			if (!subMenu) {
-				subMenu = new Action("about_plugins", {
-					name: "About Plugins...",
-					icon: "info",
-					children: []
-				});
-				MenuBar.addAction(subMenu, "help");
-			}
-		}
-
-		static getAboutSubMenu() {
-			return MenuBar.menus.help.structure.find(e => e.id === "about_plugins");
-		}
-
-		static addAboutAction(action) {
-			const subMenu = this.getAboutSubMenu();
-			subMenu.children.push(action);
-		}
-	}
-
-	let addLaserPointerAction;
-	let toggleGoldenRatioAction;
-	let toggleGuideLinesAction;
-	let toggleGuideCirclesAction;
-	let showPluginAboutAction;
-	let styles;
+	/**
+	 * @type {Deletable[]}
+	 */
+	const DELETABLES = [];
 
 	Plugin.register(PLUGIN_ID, {
 		title: 'Advanced Display Mode',
+		creation_date: "2022-08-30",
 		author: 'Elenterius',
 		description: 'Provides additional features to the display mode.',
-		about: "This plugin adds guide lines to the first person display preview and adds a selection of the minecraft arm poses (crossbow holding, bow holding, trident throwing, etc.) to the third person display preview.",
 		icon: 'display_settings',
 		tags: ["Minecraft", "Display"],
-		version: '0.0.2',
-		min_version: "4.3.0",
+		version: '0.0.4',
+		min_version: "4.5.0",
 		max_version: "5.0.0",
+		new_repository_format: true,
 		variant: 'both',
 
 		onload() {
-			styles = Blockbench.addCSS(FirstPersonViewOverlay.getBaseCSS());
-
-			PluginUtil.createAboutSubMenu();
-			showPluginAboutAction = new Action(`about_${PLUGIN_ID}`, {
-				name: `About Advanced Display Mode...`,
-				icon: 'display_settings',
-				click: () => {
-					new Dialog({
-						id: "about",
-						title: 'Advanced Display Mode v0.0.1',
-						width: 800,
-						buttons: [],
-						lines: [`
-						<style>
-							dialog#about ul {
-								text-align: start!important;
-							}
-							dialog#about li > ul {
-								margin-left: 1.5rem;
-							}
-							dialog#about li:before {
-								content: "-";
-								margin-right: 1rem;
-							}
-							dialog#about .sections {
-								display: flex;
-							}
-							dialog#about .sections h3 {
-								margin: 10px 0;
-							}
-							dialog#about .sub-section {
-								display: flex;
-								align-items: center;
-								flex-direction: column;
-								padding: 0.5rem;
-								flex: 1;
-							}
-						</style>
-						<div id="content">
-							<h1>Advanced Display Mode</h1>
-							<h2>Authors</h2>
-							<p>
-							Elenterius
-							</p>
-
-							<h2>Features</h2>
-							<div class="sections">
-								<div class="sub-section">
-									<h3>Edit Mode</h3>
-									<ul>
-										<li>laser pointer object for aligning the barrel in the first person display view to the crosshair</li>
-									</ul>
-								</div>
-								<div class="sub-section">
-									<h3>First Person Display</h3>
-									<ul>
-										<li>45 degree lines overlay</li>
-										<li>circles overlay</li>
-										<li>golden ratio lines overlay</li>
-									</ul>
-								</div>
-								<div class="sub-section">
-									<h3>Third Person Display</h3>
-									<ul>
-										<li>
-											arm pose preview
-											<ul>
-												<li>crossbow holding</li>
-												<li>bow holding</li>
-												<li>blocking</li>
-												<li>trident throwing</li>
-												<li>spyglass holding</li>
-											</ul>
-										</li>
-									</ul>
-								</div>
-							</div>
-						</div>
-						`]
-					}).show();
-				}
-			});
-			PluginUtil.addAboutAction(showPluginAboutAction);
+			DELETABLES.push(Blockbench.addCSS(FirstPersonViewOverlay.getBaseCSS()));
 
 			Blockbench.on('select_mode', onSelectModeEvent);
 			Blockbench.on('unselect_mode', onUnselectModeEvent);
@@ -736,7 +668,7 @@
 
 			replaceDisplayRefPlayerModel();
 
-			FirstPersonViewOverlay.init();
+			//FirstPersonViewOverlay.init();
 
 			OutlinerElement.registerType(LaserPointer, LaserPointer.type);
 
@@ -765,7 +697,7 @@
 				}
 			});
 
-			addLaserPointerAction = new Action('add_laser_pointer', {
+			const addLaserPointerAction = new Action('add_laser_pointer', {
 				name: 'Add Laser Pointer',
 				icon: 'flare',
 				category: 'edit',
@@ -787,22 +719,25 @@
 			Interface.Panels.outliner.menu.addAction(addLaserPointerAction, '3');
 			MenuBar.menus.edit.addAction(addLaserPointerAction, '6');
 
+			DELETABLES.push(addLaserPointerAction);
+
+
 			const validObjIds = new Set(['monitor', 'bow', 'crossbow']);
-			toggleGoldenRatioAction = new Toggle('bdm_show_golden_ratio', {
+			const toggleGoldenRatioAction = new Toggle('bdm_show_golden_ratio', {
 				name: 'Golden Ratio Overlay',
 				category: 'preview',
 				default: true,
 				condition: () => (display_mode && validObjIds.has(displayReferenceObjects.active.id)),
 				onChange: (bool) => FirstPersonViewOverlay.showGoldenRatio(bool)
 			});
-			toggleGuideLinesAction = new Toggle('bdm_show_guide_lines', {
+			const toggleGuideLinesAction = new Toggle('bdm_show_guide_lines', {
 				name: '45 degree lines Overlay',
 				category: 'preview',
 				default: true,
 				condition: () => (display_mode && validObjIds.has(displayReferenceObjects.active.id)),
 				onChange: (bool) => FirstPersonViewOverlay.showGuideLines(bool)
 			});
-			toggleGuideCirclesAction = new Toggle('bdm_show_guide_circles', {
+			const toggleGuideCirclesAction = new Toggle('bdm_show_guide_circles', {
 				name: 'Circles Overlay',
 				category: 'preview',
 				default: true,
@@ -813,25 +748,21 @@
 			Preview.prototype.menu.addAction(toggleGoldenRatioAction);
 			Preview.prototype.menu.addAction(toggleGuideLinesAction);
 			Preview.prototype.menu.addAction(toggleGuideCirclesAction);
+
+			DELETABLES.push(toggleGoldenRatioAction, toggleGuideLinesAction, toggleGuideCirclesAction);
 		},
 
 		onunload() {
-			styles.delete();
-
 			Blockbench.removeListener('select_mode', onSelectModeEvent);
 			Blockbench.removeListener('unselect_mode', onUnselectModeEvent);
 
 			restoreDisplayRefPlayerModel();
 
 			InjectUtil.removeDecoratedObjectFunctions();
-			InjectUtil.removeAllHtmlElementsBy(PLUGIN_ID);
+			//InjectUtil.removeAllHtmlElementsBy(PLUGIN_ID);
 
-			addLaserPointerAction.delete();
-			toggleGoldenRatioAction.delete();
-			toggleGuideLinesAction.delete();
-			toggleGuideCirclesAction.delete();
+			DELETABLES.forEach(deletable => deletable.delete());
 
-			showPluginAboutAction.delete();
 			MenuBar.removeAction(`help.about_plugins.about_${PLUGIN_ID}`);
 		}
 	});

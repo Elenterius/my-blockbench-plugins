@@ -762,6 +762,7 @@
 			//InjectUtil.removeAllHtmlElementsBy(PLUGIN_ID);
 
 			DELETABLES.forEach(deletable => deletable.delete());
+			DELETABLES.length = 0;
 
 			MenuBar.removeAction(`help.about_plugins.about_${PLUGIN_ID}`);
 		}

@@ -1,12 +1,15 @@
 /**
  * @author Elenterius
  * @link https://github.com/Elenterius
+ * @copyright Elenterius 2023
+ * @license MIT
  */
+"use strict";
 
 (function () {
 	"use strict";
 
-	const PLUGIN_ID = 'assets_panel';
+	const PLUGIN_ID = 'asset_library';
 
 	class FSUtil {
 		static SUB_FOLDERS = [];
@@ -117,65 +120,97 @@
 		}
 	}
 
-	class AssetCategoryHandler {
-		static #STORE_KEY = `${PLUGIN_ID}.assets_categories`;
+	class AssetCollectionHandler {
+		static #STORE_KEY = `${PLUGIN_ID}.asset_collections`;
+		static #ID_ALL = "all";
+
+		/**
+		 * @type {AssetCollectionHandler}
+		 */
 		static #INSTANCE;
-		#CATEGORY_ASSETS;
-		#CATEGORY_IDS;
+
+		/**
+		 * @type {MultiMapArray}
+		 */
+		#collections;
+
+		/**
+		 * @type {String[]}
+		 */
+		#collectionIds;
 
 		constructor() {
-			this.#CATEGORY_ASSETS = new MultiMapArray();
-			this.#CATEGORY_IDS = [];
+			this.#collections = new MultiMapArray();
+			this.#collectionIds = [];
+			this.#collections.set(AssetCollectionHandler.#ID_ALL, []);
+			this.#collectionIds.push(AssetCollectionHandler.#ID_ALL);
 		}
 
 		/**
-		 * @returns {AssetCategoryHandler}
+		 * @returns {AssetCollectionHandler}
 		 */
 		static get instance() {
-			if (!AssetCategoryHandler.#INSTANCE) {
-				AssetCategoryHandler.#INSTANCE = new AssetCategoryHandler();
+			if (!AssetCollectionHandler.#INSTANCE) {
+				AssetCollectionHandler.#INSTANCE = new AssetCollectionHandler();
 			}
-			return AssetCategoryHandler.#INSTANCE;
+			return AssetCollectionHandler.#INSTANCE;
 		}
 
 		deserialize() {
-			let storedValue = localStorage.getItem(AssetCategoryHandler.#STORE_KEY);
+			let storedValue = localStorage.getItem(AssetCollectionHandler.#STORE_KEY);
 			if (typeof storedValue == 'string') {
 				try {
 					storedValue = JSON.parse(storedValue);
 				} catch (ignored) {
-					localStorage.removeItem(AssetCategoryHandler.#STORE_KEY);
+					localStorage.removeItem(AssetCollectionHandler.#STORE_KEY);
 				}
 			}
 
 			if (storedValue != null) {
 				const deserialized = storedValue.map(([categoryId, assets]) => [categoryId, assets.map(obj => Asset.fromJSON(obj))]);
-				this.#CATEGORY_ASSETS = new MultiMapArray(deserialized);
-				this.#CATEGORY_IDS.length = 0; //clear array
-				this.#CATEGORY_IDS.safePush(...this.#CATEGORY_ASSETS.keys());
+				this.#collections = new MultiMapArray(deserialized);
+				this.#collectionIds.length = [];
+				this.#collectionIds.safePush(...this.#collections.keys());
+
+				this.#updateRootCollection();
 			}
 			else {
-				this.#CATEGORY_ASSETS = new MultiMapArray();
-				this.#CATEGORY_IDS.length = 0; //clear array
+				this.#collections = new MultiMapArray();
+				this.#collectionIds = [];
+				this.#collections.set(AssetCollectionHandler.#ID_ALL, []);
+				this.#collectionIds.push(AssetCollectionHandler.#ID_ALL);
 			}
 		}
 
 		serialize() {
-			const serialized = JSON.stringify(this.#CATEGORY_ASSETS.toArray());
-			localStorage.setItem(AssetCategoryHandler.#STORE_KEY, serialized);
+			const all = this.#collections.get(AssetCollectionHandler.#ID_ALL);
+			this.#collections.set(AssetCollectionHandler.#ID_ALL, []);
+
+			const serialized = JSON.stringify(this.#collections.toArray());
+			localStorage.setItem(AssetCollectionHandler.#STORE_KEY, serialized);
+
+			this.#collections.set(AssetCollectionHandler.#ID_ALL, all);
 		}
 
 		deleteAllData() {
-			localStorage.removeItem(AssetCategoryHandler.#STORE_KEY);
-			AssetCategoryHandler.#INSTANCE = null;
+			localStorage.removeItem(AssetCollectionHandler.#STORE_KEY);
+			AssetCollectionHandler.#INSTANCE = null;
 			FSUtil.deletePluginFolder();
 		}
 
-		deleteUnusedData() {
-			this.serialize();
+		static delete() {
+			if (!AssetCollectionHandler.#INSTANCE) return;
 
+			const handler = AssetCollectionHandler.#INSTANCE;
+			handler.serialize();
+			handler.deleteUnusedData();
+
+			AssetCollectionHandler.#INSTANCE = null;
+		}
+
+		deleteUnusedData() {
 			const thumbnailNames = new Set();
-			for (let [_categoryId, assets] of this.#CATEGORY_ASSETS.entries()) {
+			for (let [_collectionId, assets] of this.#collections.entries()) {
 				assets.forEach(a => thumbnailNames.add(a.getPathHash()));
 			}
 			const folderPath = FSUtil.getSubFolderPath(Asset.THUMBNAILS_FOLDER_NAME);
@@ -196,88 +231,111 @@
 					});
 				}
 			});
+		}
 
-			AssetCategoryHandler.#INSTANCE = null;
+		#updateRootCollection() {
+			const hashes = new Set();
+			const all = [];
+			for (const [_collectionId, assets] of this.#collections.entries()) {
+				assets
+					.filter(x => !hashes.has(x.compiledModelHash))
+					.forEach(x => {
+						all.push(x);
+						hashes.add(x.compiledModelHash);
+					});
+			}
+			this.#collections.set(AssetCollectionHandler.#ID_ALL, all);
 		}
 
 		#onChange() {
+			this.#updateRootCollection();
+			this.serialize();
+		}
+
+		forceRefresh() {
+			this.#updateRootCollection();
 			this.serialize();
 		}
 
 		/**
-		 * @param {string} categoryId
+		 * @param {String} collectionId
 		 * @param {Asset} asset
 		 */
-		addAssetToCategory(categoryId, asset) {
-			if (!this.#CATEGORY_ASSETS.has(categoryId)) return;
+		addAssetToCollection(collectionId, asset) {
+			if (collectionId.toLowerCase() === AssetCollectionHandler.#ID_ALL) return;
+			if (!this.#collections.has(collectionId)) return;
 
-			if (this.#CATEGORY_ASSETS.addIf(categoryId, asset, (v) => !v.find(x => x.path === asset.path))) {
+			if (this.#collections.addIf(collectionId, asset, (v) => !v.find(x => x.path === asset.path))) {
 				this.#onChange();
 			}
 		}
 
 		/**
-		 * @param {string} categoryId
-		 * @returns nullable categoryId
+		 * @param {String} collectionId
+		 * @returns {String?}
 		 */
-		addCategory(categoryId) {
-			if (this.#CATEGORY_ASSETS.has(categoryId)) return null;
+		addCollection(collectionId) {
+			if (collectionId.toLowerCase() === AssetCollectionHandler.#ID_ALL) return;
+			if (this.#collections.has(collectionId)) return null;
 
-			this.#CATEGORY_ASSETS.set(categoryId, []);
-			this.#CATEGORY_IDS.push(categoryId);
+			this.#collections.set(collectionId, []);
+			this.#collectionIds.push(collectionId);
 
 			this.#onChange();
 
-			return categoryId;
+			return collectionId;
 		}
 
 		/**
-		 * @param {string} categoryId
+		 * @param {String} collectionId
 		 */
-		removeCategory(categoryId) {
-			this.#CATEGORY_IDS.remove(categoryId);
-			this.#CATEGORY_ASSETS.delete(categoryId);
+		removeCollection(collectionId) {
+			if (collectionId.toLowerCase() === AssetCollectionHandler.#ID_ALL) return;
+
+			this.#collectionIds.remove(collectionId);
+			this.#collections.delete(collectionId);
 
 			this.#onChange();
 		}
 
 		/**
-		 * @param {string} categoryId
+		 * @param {String} collectionId
 		 * @param {Asset} asset
 		 */
-		removeAssetFromCategory(categoryId, asset) {
-			if (this.#CATEGORY_ASSETS.removeValue(categoryId, asset)) {
+		removeAssetFromCollection(collectionId, asset) {
+			if (collectionId.toLowerCase() === AssetCollectionHandler.#ID_ALL) return;
+			if (this.#collections.removeValue(collectionId, asset)) {
 				this.#onChange();
 			}
 		}
 
 		/**
-		 * @returns {string[]}
+		 * @returns {String[]}
 		 */
-		getCategories() {
-			return this.#CATEGORY_IDS;
+		getCollections() {
+			return this.#collectionIds;
 		}
 
 		/**
-		 * @param {string} categoryId
+		 * @param {string} collectionId
 		 * @returns {Asset[]}
 		 */
-		getAssetsBy(categoryId) {
-			return this.#CATEGORY_ASSETS.get(categoryId, () => []);
+		getAssetsBy(collectionId) {
+			return this.#collections.get(collectionId, () => []);
 		}
 
 		/**
 		 * @param {Asset} asset
 		 * @returns {Set<string>}
 		 */
-		getCategoriesByAsset(asset) {
-			const categories = new Set();
-			for (let [categoryId, assets] of this.#CATEGORY_ASSETS.entries()) {
+		getCollectionsByAsset(asset) {
+			const collections = new Set();
+			for (let [collectionId, assets] of this.#collections.entries()) {
 				if (assets.find(x => x.path === asset.path)) {
-					categories.add(categoryId);
+					collections.add(collectionId);
 				}
 			}
-			return categories;
+			return collections;
 		}
 
 		/**
@@ -287,7 +345,7 @@
 		getAssociatedAssets(modelProject) {
 			const path = modelProject.export_path || modelProject.save_path;
 			const foundAssets = new Map();
-			for (let [categoryId, assets] of this.#CATEGORY_ASSETS.entries()) {
+			for (let [categoryId, assets] of this.#collections.entries()) {
 				const asset = assets.find(x => x.path == path);
 				if (asset) {
 					foundAssets.set(categoryId, asset);
@@ -305,13 +363,13 @@
 		}
 
 		/**
-		 * @param {string} name
-		 * @param {string} path
-		 * @param {string} icon
-		 * @param {number} timestamp
+		 * @param {String} name
+		 * @param {String} path
+		 * @param {String} icon
+		 * @param {Number} timestamp
 		 */
 		constructor(name, path, modelFormatId, timestamp, compiledModelHash) {
-			if (name.length > 48) name = name.substr(0, 20) + '...' + name.substr(-20);
+			if (name.length > 48) name = name.substring(0, 20 + 1) + '...' + name.substring(name.length - 20);
 
 			this.name = name;
 			this.path = path;
@@ -377,6 +435,7 @@
 					scope.modelFormatId = bbModel.meta?.model_format;
 					scope.compiledModelHash = JSON.stringify(bbModel).hashCode();
 					scope.updateTimestamp();
+					AssetCollectionHandler.instance.forceRefresh();
 				});
 			}
 			else {
@@ -410,7 +469,7 @@
 		static updateAssets(modelProject, compiledModel) {
 			if (Outliner.elements.length == 0) return;
 
-			let assets = AssetCategoryHandler.instance.getAssociatedAssets(modelProject);
+			let assets = AssetCollectionHandler.instance.getAssociatedAssets(modelProject);
 			if (assets.size < 1) return;
 
 			const compiledModelHash = JSON.stringify(compiledModel).hashCode();
@@ -523,7 +582,7 @@
 
 	function onProjectClose(_data) {
 		if (Project.saved) {
-			let assets = Array.from(AssetCategoryHandler.instance.getAssociatedAssets(Project).values());
+			let assets = Array.from(AssetCollectionHandler.instance.getAssociatedAssets(Project).values());
 			if (assets.find(a => !a.compiledModelHash || !a.hasThumbnail())) {
 				ModelProjectUtil.updateAssetsFor(Project);
 			}
@@ -546,35 +605,48 @@
 		}, 100);
 	}
 
-	let assetsPanel;
-	let assetsToolbar;
-	let actionAddAssetCategory;
-	let actionDeleteAssetCategory;
-	let actionAddProjectToCategory;
+	function onBeforeClosing(_data) {
+		console.log("before closing");
+		AssetCollectionHandler.delete();
+	}
 
-	let styles;
+	class DeletableToolbar extends Toolbar {
+		delete() {
+			this.node.remove();
+			this.label_node?.remove();
+		}
+	}
+
+	/**
+	 * @type {Deletable[]}
+	 */
+	const DELETABLES = [];
 
 	Plugin.register(PLUGIN_ID, {
-		title: 'Assets Panel',
-		icon: 'photo_album',
+		title: 'Asset Library',
+		icon: 'icon.svg',
 		author: 'Elenterius',
-		description: 'This plugin adds an Assets Panel which displays all models from a specified collection.',
-		tags: ["UI", "UX", "Model Import"],
-		version: '0.0.2',
+		description: 'Organize your projects into asset collections. View your collections in the library panel and import assets into your currently open project.',
+		tags: ["Files", "Management", "Blockbench", "UX"],
+		creation_date: "2022-10-02",
+		version: '0.1.1',
+		min_version: "4.8.0",
+		max_version: "5.0.0",
 		variant: 'desktop',
 
 		onload() {
 			FSUtil.setupFolderStructure();
 			StateMemory.init('assets_list_type', 'string'); //tracks how assets are displayed: grid or list layout?
-			AssetCategoryHandler.instance.deserialize();
+			AssetCollectionHandler.instance.deserialize();
 
 			Blockbench.on('select_project', onProjectSelect);
 			Blockbench.on('save_project', onProjectSave);
 			Blockbench.on('close_project', onProjectClose);
+			Blockbench.on('before_closing', onBeforeClosing);
 			Codecs.project.on('compile', onProjectCompile);
 			Codecs.project.on('parsed', onProjectParsed);
 
-			styles = Blockbench.addCSS(`
+			DELETABLES.push(Blockbench.addCSS(`
 			#assets-panel #assets_view_menu {
 				display: flex;
 				flex-wrap: wrap;
@@ -774,33 +846,32 @@
 			#assets-panel .select-wrapper:hover .select-overlay:before {
 				color: var(--color-light);
 			}
-			`);
+			`));
 
-			actionAddAssetCategory = new Action('add_asset_category', {
-				name: 'New Category',
-				description: 'Creates a new assets category',
+			const actionAddAssetCollection = new Action('add_asset_collection', {
+				name: 'New Collection',
+				description: 'Creates a new asset collection',
 				icon: 'new_label',
 				click: function () {
-					Blockbench.textPrompt('Category Name', '', name => {
-						if (!AssetCategoryHandler.instance.addCategory(name)) {
+					Blockbench.textPrompt('Create New Collection', '', name => {
+						if (!AssetCollectionHandler.instance.addCollection(name)) {
 							Blockbench.showMessageBox({
 								icon: 'error',
 								title: 'Error',
-								message: "Failed to create asset category with name:\n\n" + name
+								message: "Failed to create collection with name:\n\n" + name
 							});
 						}
 					});
 				}
 			});
-
-			actionDeleteAssetCategory = new Action('delete_asset_category', {
-				name: 'Delete Category',
-				description: 'Deletes a assets category',
+			const actionDeleteAssetCollection = new Action('delete_asset_collection', {
+				name: 'Delete Collection',
+				description: 'Deletes a asset collection',
 				icon: 'label_off',
 				click: function () {
-					const categoryOptions = {};
-					AssetCategoryHandler.instance.getCategories().forEach(id => {
-						categoryOptions[id] = id;
+					const collectionOptions = {};
+					AssetCollectionHandler.instance.getCollections().forEach(id => {
+						collectionOptions[id] = id;
 					});
 
 					const select = document.getElementById('selectCategoryId');
@@ -808,30 +879,29 @@
 
 					const dialog = new Dialog({
 						id: 'project',
-						title: 'Delete Category',
+						title: 'Delete Collection',
 						width: 540,
-						lines: [`Delete the following assets category`],
+						lines: [`Delete the following collection`],
 						form: {
-							categoryId: { label: 'Category', type: 'select', default: defaultValue, options: categoryOptions }
+							collectionId: { label: 'Collection', type: 'select', default: defaultValue, options: collectionOptions }
 						},
-						buttons: ['Delete', 'dialog.cancel'],
+						buttons: ['Delete Collection', 'dialog.cancel'],
 						onConfirm: function (formResult) {
-							AssetCategoryHandler.instance.removeCategory(formResult.categoryId);
+							AssetCollectionHandler.instance.removeCollection(formResult.collectionId);
 							dialog.hide();
 						}
 					});
 					dialog.show();
 				}
 			});
-
-			actionAddProjectToCategory = new Action('add_project_to_category', {
-				name: 'Add Project to Assets',
-				description: 'Adds a blockbench project to the currently selected asset category',
+			const actionAddProjectToCollection = new Action('add_project_to_asset_collection', {
+				name: 'Add Project to Asset Collection',
+				description: 'Adds a project to the selected asset collection',
 				icon: 'note_add',
 				click: function () {
-					const categoryOptions = {};
-					AssetCategoryHandler.instance.getCategories().forEach(id => {
-						categoryOptions[id] = id;
+					const collectionOptions = {};
+					AssetCollectionHandler.instance.getCollections().forEach(id => {
+						collectionOptions[id] = id;
 					});
 
 					const select = document.getElementById('selectCategoryId');
@@ -839,11 +909,11 @@
 
 					const dialog = new Dialog({
 						id: 'project',
-						title: 'Select Category',
+						title: 'Select Collection',
 						width: 540,
-						lines: [`Choose to which category you want to add assets`],
+						lines: [`Add assets to the following collection`],
 						form: {
-							categoryId: { label: 'Category', type: 'select', default: defaultValue, options: categoryOptions }
+							collectionId: { label: 'Collection', type: 'select', default: defaultValue, options: collectionOptions }
 						},
 						buttons: ['Add Assets', 'dialog.cancel'],
 						onConfirm: function (formResult) {
@@ -859,8 +929,8 @@
 										if (file.path && !file.no_file) {
 											const modelFormatId = autoParseJSON(file.content).meta?.model_format;
 
-											AssetCategoryHandler.instance.addAssetToCategory(
-												formResult.categoryId,
+											AssetCollectionHandler.instance.addAssetToCollection(
+												formResult.collectionId,
 												new Asset(pathToName(file.path, false), file.path, modelFormatId)
 											);
 										}
@@ -873,10 +943,13 @@
 				}
 			});
 
-			assetsToolbar = new Toolbar({ id: 'assets', children: [] });
-			assetsToolbar.add(actionAddAssetCategory, 0);
-			assetsToolbar.add(actionDeleteAssetCategory, 1);
-			assetsToolbar.add(actionAddProjectToCategory, 2);
+			const assetsToolbar = new DeletableToolbar({ id: 'asset_library_tools', children: [] });
+			assetsToolbar.add(actionAddAssetCollection, 0);
+			assetsToolbar.add(actionDeleteAssetCollection, 1);
+			assetsToolbar.add(actionAddProjectToCollection, 2);
+
+			DELETABLES.push(actionAddAssetCollection, actionDeleteAssetCollection, actionAddProjectToCollection);
+			DELETABLES.push(assetsToolbar);
 
 			const assetContextMenu = new Menu('asset_context', [
 				{
@@ -994,7 +1067,7 @@
 					name: 'Remove from Category',
 					icon: 'clear',
 					click: (context, _event) => {
-						AssetCategoryHandler.instance.removeAssetFromCategory(context.categoryId, context.asset);
+						AssetCollectionHandler.instance.removeAssetFromCollection(context.categoryId, context.asset);
 					}
 				},
 				'_',
@@ -1006,7 +1079,7 @@
 						arr[arr.length - 1] = `<span class="accent_color">${arr[arr.length - 1]}</span>`;
 						const path = arr.join('<span class="slash">/</span>');
 
-						const categories = Array.from(AssetCategoryHandler.instance.getCategoriesByAsset(context.asset)).map(s => `<span class="tag">${s}</span>`).join('');
+						const collections = Array.from(AssetCollectionHandler.instance.getCollectionsByAsset(context.asset)).map(s => `<span class="tag">${s}</span>`).join('');
 
 						const dialog = new Dialog({
 							id: 'asset_properties',
@@ -1048,11 +1121,11 @@
 									align-items: center;
 									justify-content: center;
 								}
-								#asset_properties .categories {
+								#asset_properties .collections {
 									display: flex;
 									gap: 0.5em;
 								}
-								#asset_properties .categories .tag {
+								#asset_properties .collections .tag {
 									padding: 0.1em 0.5em;
 									border-radius: 0.5em;
 									background-color: var(--color-button);
@@ -1068,14 +1141,15 @@
 								</div>
 								`,
 								`<div class="layout column" style="gap:0.25em; margin-top: 1em;">
-									<label>Categories</label>
-									<div class="categories">${categories}</div>
+									<label>Collections</label>
+									<div class="collections">${collections}</div>
 								</div>`
 							],
 							form: {
 								hr: '_',
+								formatName: { label: 'Model Format', type: 'info', text: context.asset.modelFormatName },
 								formatId: { label: 'Model Format Id', type: 'info', text: context.asset.modelFormatId },
-								formatName: { label: 'Model Format Name', type: 'info', text: context.asset.modelFormatName },
+								hash: { label: 'Model Hash', type: 'info', text: (context.asset.compiledModelHash + "") },
 							},
 							onConfirm: function (_results) {
 								dialog.hide();
@@ -1085,8 +1159,8 @@
 				}
 			]);
 
-			assetsPanel = new Panel('assets', {
-				name: 'Assets',
+			const assetsPanel = new Panel('asset_library', {
+				name: 'Asset Library',
 				icon: 'photo_album',
 				condition: !Blockbench.isMobile && { modes: ['edit'] },
 				default_position: {
@@ -1095,16 +1169,16 @@
 					float_size: [300, 400],
 					height: 380
 				},
-				toolbars: {
-					head: assetsToolbar
-				},
+				toolbars: [
+					assetsToolbar
+				],
 				growable: true,
 				component: {
 					name: 'panel-assets',
 					data: {
-						categories: AssetCategoryHandler.instance.getCategories(),
-						selectedCategoryId: AssetCategoryHandler.instance.getCategories()[0],
-						selectedCategoryAssets: AssetCategoryHandler.instance.getAssetsBy(AssetCategoryHandler.instance.getCategories()[0]),
+						categories: AssetCollectionHandler.instance.getCollections(),
+						selectedCategoryId: AssetCollectionHandler.instance.getCollections()[0],
+						selectedCategoryAssets: AssetCollectionHandler.instance.getAssetsBy(AssetCollectionHandler.instance.getCollections()[0]),
 
 						list_type: StateMemory.assets_list_type || 'grid',
 						search_term: '',
@@ -1128,7 +1202,7 @@
 							});
 						},
 						getCategory(asset) {
-							return Array.from(AssetCategoryHandler.instance.getCategoriesByAsset(asset)).join(', ');
+							return Array.from(AssetCollectionHandler.instance.getCategoriesByAsset(asset)).join(', ');
 						},
 						hasAssets() {
 							return this.selectedCategoryAssets.length != 0;
@@ -1144,7 +1218,7 @@
 							}
 						},
 						selectedCategoryId(newId, _oldId) {
-							this.selectedCategoryAssets = AssetCategoryHandler.instance.getAssetsBy(newId);
+							this.selectedCategoryAssets = AssetCollectionHandler.instance.getAssetsBy(newId);
 						}
 					},
 					computed: {
@@ -1207,34 +1281,31 @@
 									<span class="asset_name">{{ asset.name }}</span>
 								</li>
 							</ul>
-							<div v-if="!hasAssets()">No Models are associated with this category</div>
+							<div v-if="!hasAssets()">No Projects are associated with this collection</div>
 						</div>
 					</div>
 					`
 				}
 			});
-
+			DELETABLES.push(assetsPanel);
 		},
 
 		onunload() {
-			AssetCategoryHandler.instance.deleteUnusedData();
+			AssetCollectionHandler.delete();
 
-			assetsPanel.delete();
-			actionAddAssetCategory.delete();
-			actionDeleteAssetCategory.delete();
-			actionAddProjectToCategory.delete();
-
-			styles.delete();
+			DELETABLES.forEach(x => x.delete());
+			DELETABLES.length = 0;
 
 			Blockbench.removeListener('select_project', onProjectSelect);
 			Blockbench.removeListener('save_project', onProjectSave);
 			Blockbench.removeListener('close_project', onProjectClose);
+			Blockbench.removeListener('before_closing', onBeforeClosing);
 			Codecs.project.removeListener('compile', onProjectCompile);
 			Codecs.project.removeListener('parsed', onProjectParsed);
 		},
 
 		onuninstall() {
-			AssetCategoryHandler.instance.deleteAllData();
+			AssetCollectionHandler.instance.deleteAllData();
 		}
 	});
 

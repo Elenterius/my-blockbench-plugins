@@ -931,7 +931,7 @@
 				}
 			});
 			const actionAddProjectToCollection = new Action('add_project_to_asset_collection', {
-				name: 'Add Project to Asset Collection',
+				name: 'Add Project to Collection',
 				description: 'Adds a project to the selected asset collection',
 				icon: 'note_add',
 				click: function () {

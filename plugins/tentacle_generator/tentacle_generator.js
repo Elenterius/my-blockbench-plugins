@@ -28,6 +28,8 @@
         let colorId = 0;
         let maxSegments = config.segments;
 
+        let source;
+
         for (let i = 0; i < maxSegments; i++) {
             let widthXZ = config.getSizeXZ(i, maxSegments);
             let height = config.getSizeY(i, maxSegments); 
@@ -35,6 +37,10 @@
             let bone = new Group({ name: baseName + '_bone_' + i, origin: offset.slice() });
             bone.addTo(parent);
             bone.init();
+
+            if (i === 0) {
+                source = bone;
+            }
 
             let halfWidth = widthXZ * 0.5;
             let posA = [offset[0] - halfWidth, offset[1], offset[2] - halfWidth];
@@ -59,6 +65,8 @@
         ikTarget.addTo(root);
         ikTarget.init();
         ikTarget.ik_target = endEffector.uuid;
+        ikTarget.ik_source = source.uuid;
+
         elements.push(ikTarget);
 
         Canvas.updateAll();

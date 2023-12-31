@@ -19,9 +19,8 @@
         icon: 'extension',
         tags: ["Minecraft"],
         version: '0.1.0',
-        min_version: "4.5.0",
+        min_version: "4.8.0",
         max_version: "5.0.0",
-        new_repository_format: true,
         variant: 'both',
 
         onload() {},

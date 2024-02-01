@@ -1193,7 +1193,7 @@
 
     BBPlugin.register(PLUGIN_ID, {
         title: 'Foundry',
-        creation_date: "2023-07-10",
+        creation_date: "2024-02-01",
         author: 'Elenterius',
         description: 'Additional Modding Tools focused around Forge/NeoForge & Geckolib',
         icon: 'melting-metal.svg',
